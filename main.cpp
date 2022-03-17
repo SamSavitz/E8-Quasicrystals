@@ -2,10 +2,12 @@
 #include <array>
 #include <cassert>
 #include <chrono>
+#define _USE_MATH_DEFINES
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <random>
 #include <sstream>
 #include <vector>
 
@@ -29,13 +31,13 @@ using RVP = array <RV, 2>;
 constexpr R SKEW = 15;
 
 constexpr Z W = 1920;
-constexpr Z H = 1080;
+constexpr Z H = 1200;
 constexpr Z P = H*W;
 
 constexpr R KNEEP = 4;
 constexpr R KNEEM = 1;
 
-constexpr R RES = 9;
+constexpr R RES = 10;
 
 constexpr R XO = H/2;
 constexpr R YO = H/2;
@@ -44,9 +46,11 @@ constexpr R RB = 72187./212655;
 constexpr R G = 250000./357579;
 constexpr R JUMP = 0.2;
 
-constexpr Z FS = 240;
+constexpr Z FS = 360;
 
 constexpr R EPSILON = 1e-9;
+
+constexpr Z SEED = 1;
 
 template <class V1, class V2>
 inline R dot(const V1& v, const V2& w) {
@@ -67,24 +71,45 @@ inline RV mix(const R a, const RV& v, const R b, const RV& w) {
     return r;
 }
 
-inline void rotate() {
+inline void rotate(const R c, const R s, RVP& v) {
+    const RV t    = mix( c, v[0], s, v[1] );
+             v[1] = mix(-s, v[0], c, v[1] );
+             v[0] = t;
+}
+
+inline void rotate(const R t, RVP& v) {
+    rotate(cos(t), sin(t), v);
+}
+
+inline void rotate(RVP& v) {
+    static default_random_engine gen(SEED);
+    static uniform_real_distribution <R> dist(0.0, 2*M_PI);
+    rotate(dist(gen), v);
+}
+
+inline void preprocess() {
+    rotate(XY[0] );
+
     for (unsigned int n = 0; n < XY.size() - 1; n++) {
-        const R sxx = dot(XY[n] [0], XY[n + 1] [0] );
-        const R sxy = dot(XY[n] [0], XY[n + 1] [1] );
-        const R syx = dot(XY[n] [1], XY[n + 1] [0] );
-        const R syy = dot(XY[n] [1], XY[n + 1] [1] );
+        RVP& a = XY[n    ];
+        RVP& b = XY[n + 1];
+
+        const R sxx = dot(a[0], b[0] );
+        const R sxy = dot(a[0], b[1] );
+        const R syx = dot(a[1], b[0] );
+        const R syy = dot(a[1], b[1] );
 
         const R s = sqrt((sxx + syy)*(sxx + syy) + (sxy - syx)*(sxy - syx));
 
-        if (s < EPSILON)  continue;
+        if (s < EPSILON)
+            rotate(b);
+        else {
+            const R ct = (sxx + syy)/s;
+            const R st = (sxy - syx)/s;
 
-        const R ct = (sxx + syy)/s;
-        const R st = (sxy - syx)/s;
+            rotate(ct, st, b);
+        }
 
-        const RV t    = mix( ct, XY[n + 1] [0], st, XY[n + 1] [1] );
-
-        XY[n + 1] [1] = mix(-st, XY[n + 1] [0], ct, XY[n + 1] [1] );
-        XY[n + 1] [0] = t;
     }
 }
 
@@ -129,15 +154,15 @@ int main(int argc, const char* argv[]) {
 
     cout << np << ' ' << f << ' ' << ff << endl;
 
-    if (t < 0.025 || t > 0.975)
-        t = round(t);
-    else {
-        t = (t - 0.025)/0.95;
+    //if (t < 0.02 || t > 0.98)
+    //    t = round(t);
+    //else {
+    //    t = (t - 0.02)/0.96;
         t = 2*(t - 0.5);
         t = (t*(t*t*(t*t*(21 - 5*t*t) - 35) + 35) + 16)/32;
-    }
+    //}
 
-    rotate();
+    preprocess();
 
     RV X2 = mix(1 - t, XY[n] [0], t, XY[n + 1] [0] );
     RV Y2 = mix(1 - t, XY[n] [1], t, XY[n + 1] [1] );
