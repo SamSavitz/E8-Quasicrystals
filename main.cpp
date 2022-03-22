@@ -4,6 +4,7 @@
 #include <chrono>
 #define _USE_MATH_DEFINES
 #include <cmath>
+//#include <execution>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -13,6 +14,8 @@
 
 using namespace std;
 using namespace chrono;
+
+#include <tbb/parallel_for.h>
 
 #include "codec.h"
 
@@ -51,6 +54,7 @@ constexpr Z FS = 60;
 constexpr R EPSILON = 1e-9;
 
 constexpr Z SEED = 1;
+
 
 template <class V1, class V2>
 inline R dot(const V1& v, const V2& w) {
@@ -173,12 +177,6 @@ inline RGB color(R e) {
 
 
 int main(int argc, const char* argv[]) {
-    //if (t < 0.02 || t > 0.98)
-    //    t = round(t);
-    //else {
-    //    t = (t - 0.02)/0.96;
-    //}
-
     Encoder encoder("out.mp4", W, H, 15, 0.5);
 
     preprocess();
@@ -216,24 +214,31 @@ int main(int argc, const char* argv[]) {
             const RV X = mix((sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
             const RV Y = mix((sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
 
-        	for (Z y = 0; y < H; ++y) {
-        		const R yf = (y - YO)/RES;
+            tbb::parallel_for(
+                //execution::par_unseq,
+                tbb::blocked_range <int>  (0, H),
+                [&] (tbb::blocked_range <int> r) {
 
-        		for (Z x = 0; x < W; ++x) {
-        			const R xf = (x - XO)/RES;
+                	for (Z y = r.begin(); y < r.end(); ++y) {
+                		const R yf = (y - YO)/RES;
 
-                    const RV z = mix(xf, X, yf, Y);
+                		for (Z x = 0; x < W; ++x) {
+                			const R xf = (x - XO)/RES;
 
-                    R sum = 0;
+                            const RV z = mix(xf, X, yf, Y);
 
-        			for (const ZV& r :  ROOTS)
-        				sum += cos(dot(r, z));
+                            R sum = 0;
 
-                    sum *= 2;
+                			for (const ZV& r :  ROOTS)
+                				sum += cos(dot(r, z));
 
-                    frame[W*y + x] = color(sum);
-        		}
-        	}
+                            sum *= 2;
+
+                            frame[W*y + x] = color(sum);
+                		}
+                	}
+                }
+            );
 
             encoder.writeFrame(frame);
         }
