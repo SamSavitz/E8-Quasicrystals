@@ -14,7 +14,7 @@
 using namespace std;
 using namespace chrono;
 
-#include "BMP/EasyBMP.h"
+#include "codec.h"
 
 using Z = ptrdiff_t;
 using R = double;
@@ -46,7 +46,7 @@ constexpr R RB = 72187./212655;
 constexpr R G = 250000./357579;
 constexpr R JUMP = 0.2;
 
-constexpr Z FS = 360;
+constexpr Z FS = 60;
 
 constexpr R EPSILON = 1e-9;
 
@@ -141,41 +141,47 @@ inline unsigned char GAMMA(const R i) {
 		return o;
 }
 
+inline RGB color(R e) {
+    constexpr R minE = -N/SKEW;
+    constexpr R maxE =  N     ;
+
+	constexpr R pKneePF = KNEEP/maxE;
+	constexpr R posPF = 1/tanh(pKneePF*maxE);
+	constexpr R nKneePF = -KNEEM/minE;
+	constexpr R negPF = 1/tanh(nKneePF*minE);
+
+    RGB p;
+
+	if (e > 0) {
+		e = tanh(pKneePF*e);
+		e *= posPF;
+
+		p.r = GAMMA((1 - RB*JUMP)*e + RB*JUMP);
+		p.g = GAMMA((1 - G)*e);
+		p.b = GAMMA(e);
+	} else {
+		e = tanh(nKneePF*e);
+		e *= negPF;
+
+		p.r = 0;
+		p.g = GAMMA(G*e);
+		p.b = GAMMA(JUMP*(1 - e));
+	}
+
+    return p;
+}
+
 
 int main(int argc, const char* argv[]) {
-	assert(argc == 3);
-
-	const Z n = atoi(argv[1] );
-	Z np = n + 1;
-
-    const Z f = atoi(argv[2] );
-    R t = (R) f/FS;
-    const Z ff = FS*n + f;
-
-    cout << np << ' ' << f << ' ' << ff << endl;
-
     //if (t < 0.02 || t > 0.98)
     //    t = round(t);
     //else {
     //    t = (t - 0.02)/0.96;
-        t = 2*(t - 0.5);
-        t = (t*(t*t*(t*t*(21 - 5*t*t) - 35) + 35) + 16)/32;
     //}
 
+    Encoder encoder("out.mp4", W, H, 15, 0.5);
+
     preprocess();
-
-    RV X2 = mix(1 - t, XY[n] [0], t, XY[n + 1] [0] );
-    RV Y2 = mix(1 - t, XY[n] [1], t, XY[n + 1] [1] );
-
-    if (f) {
-        normalize(X2);
-        normalize(Y2);
-    }
-
-    const R a = dot(X2, Y2);
-
-    const RV X = mix((sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
-    const RV Y = mix((sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
 
     stringstream ss;
 
@@ -183,187 +189,53 @@ int main(int argc, const char* argv[]) {
 	Z oy;
 
 	Z yp = -1;
-	R* vs = new R[P];
+	RGB* const frame = new RGB[P];
 
-	for (Z y = 0; y < H; y++) {
-		const Z nyp = round(100.*y/H);
+    for (Z n = 0; n < XY.size(); ++n) {
+    	const Z np = n + 1;
 
-		/*if (nyp > yp) {
-			yp = nyp;
+        for (Z f = 0; f < FS; ++f) {
+            R t = (R) f/FS;
+            const Z ff = FS*n + f;
 
-			ss.str("");
+            cerr << np << ' ' << f << ' ' << ff << endl;
 
-			ss << "C,\t";
+            t = 2*(t - 0.5);
+            t = (t*(t*t*(t*t*(21 - 5*t*t) - 35) + 35) + 16)/32;
 
-			if (np < 10)
-				ss << ' ';
+            RV X2 = mix(1 - t, XY[n] [0], t, XY[np] [0] );
+            RV Y2 = mix(1 - t, XY[n] [1], t, XY[np] [1] );
 
-			ss << np << ",\t";
+            if (f) {
+                normalize(X2);
+                normalize(Y2);
+            }
 
-			if (yp < 100) {
-				ss << ' ';
+            const R a = dot(X2, Y2);
 
-				if (yp < 10)
-					ss << ' ';
-			}
+            const RV X = mix((sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
+            const RV Y = mix((sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
 
-			ss << yp << '%';
+        	for (Z y = 0; y < H; ++y) {
+        		const R yf = (y - YO)/RES;
 
-			const high_resolution_clock::time_point nt = high_resolution_clock::now();
+        		for (Z x = 0; x < W; ++x) {
+        			const R xf = (x - XO)/RES;
 
-			if (y) {
-				const duration <R, nano> ts = nt - ot;
-				const Z dy = y - oy;
-				const Z ry = H - y;
-				const Z rm = round(ry*ts.count()/(1e9*dy));
+                    const RV z = mix(xf, X, yf, Y);
 
-				ss << ",\t";
+                    R sum = 0;
 
-				if (rm > 3600) {
-					if (rm/3600 < 10)
-						ss << ' ';
+        			for (const ZV& r :  ROOTS)
+        				sum += cos(dot(r, z));
 
-					ss << rm/3600;
+                    sum *= 2;
 
-					if ((rm/60) % 60 < 10)
-						ss << '0';
+                    frame[W*y + x] = color(sum);
+        		}
+        	}
 
-					ss << (rm/60) % 60 << ':';
-
-					if (rm % 60 < 10)
-						ss << '0';
-
-					ss << rm % 60;
-				} else if (rm > 60) {
-					ss << " 0:";
-
-					if (rm/60 < 10)
-						ss << '0';
-
-					ss << rm/60 << ':';
-
-					if (rm % 60 < 10)
-						ss << '0';
-
-					ss << rm % 60;
-				} else {
-					ss << " 0:00:";
-
-					if (rm < 10)
-						ss << '0';
-
-					ss << rm;
-				}
-			}
-
-			ot = nt;
-			oy = y;
-
-			ss << endl;
-			cerr << ss.str();
-			cerr.flush();
-		}*/
-
-		const R yf = (y - YO)/RES;
-
-		for (Z x = 0; x < W; x++) {
-			const R xf = (x - XO)/RES;
-
-            const RV z = mix(xf, X, yf, Y);
-
-            R sum = 0;
-
-			for (const ZV& r :  ROOTS)
-				sum += cos(dot(r, z));
-
-            sum *= 2;
-
-            vs[W*y + x] = sum;
-		}
-	}
-
-	R minE, maxE;
-
-	maxE = N;
-	minE = -N/SKEW;
-
-	R pKneePF, posPF, nKneePF, negPF;
-
-	pKneePF = KNEEP/maxE;
-	posPF = 1/tanh(pKneePF*maxE);
-	nKneePF = -KNEEM/minE;
-	negPF = 1/tanh(nKneePF*minE);
-
-	BMP out;
-        out.SetSize(W, H);
-        out.SetBitDepth(24);
-        out.SetDPI(0, 0);
-
-	yp = -5;
-
-    for (Z y = 0; y < H; y++) {
-		const Z nyp = round(100.*y/H);
-
-		/*if (nyp >= yp + 5) {
-			yp = nyp;
-
-			ss.str("");
-			ss << "O,\t";
-
-			if (np < 10)
-				ss << ' ';
-
-			ss << np << ",\t";
-
-			if (yp < 100) {
-				ss << ' ';
-
-				if (yp < 10)
-					ss << ' ';
-			}
-
-			ss << yp << '%' << endl;
-			cerr << ss.str();
-			cerr.flush();
-		}*/
-
-		const R yf = (y - YO)/RES;
-
-		for (Z x = 0; x < W; x++) {
-			const R xf = (x - XO)/RES;
-			R e = vs[W*y + x];
-
-			RGBApixel& pixel = *out(x, y);
-
-			if (minE > 0) {
-				e = tanh(pKneePF*(e - minE));
-				e *= posPF;
-
-				pixel.Red = GAMMA(e);
-				pixel.Green = GAMMA((1 - G)*e);
-				pixel.Blue = GAMMA(e);
-			} else
-				if (e > 0) {
-					e = tanh(pKneePF*e);
-					e *= posPF;
-
-					pixel.Red = GAMMA((1 - RB*JUMP)*e + RB*JUMP);
-					pixel.Green = GAMMA((1 - G)*e);
-					pixel.Blue = GAMMA(e);
-				} else {
-					e = tanh(nKneePF*e);
-					e *= negPF;
-
-					pixel.Red = 0;
-					pixel.Green = GAMMA(G*e);
-					pixel.Blue = GAMMA(JUMP*(1 - e));
-				}
-		}
-	}
-
-	ss.str("");
-
-	ss << ff << ".bmp";
-
-    out.WriteToFile(ss.str().c_str());
+            encoder.writeFrame(frame);
+        }
+    }
 }
