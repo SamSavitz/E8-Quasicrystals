@@ -17,13 +17,19 @@ using namespace chrono;
 
 #include <tbb/parallel_for.h>
 
-#include "codec.h"
-
 using Z = ptrdiff_t;
-using R = double;
+using R = float;
 
 constexpr Z D = 8;
 constexpr Z N = 240;
+
+constexpr R SKEW = 15;
+
+constexpr R minE = -N/SKEW;
+constexpr R maxE =  N     ;
+
+#include "codec.h"
+#include "color.h"
 
 using ZV = array <Z, D>;
 using RV = array <R, D>;
@@ -31,23 +37,14 @@ using RVP = array <RV, 2>;
 
 #include "data.h"
 
-constexpr R SKEW = 15;
-
 constexpr Z W = 1920;
-constexpr Z H = 1200;
+constexpr Z H = 1080;
 constexpr Z P = H*W;
-
-constexpr R KNEEP = 4;
-constexpr R KNEEM = 1;
 
 constexpr R RES = 10;
 
 constexpr R XO = H/2;
 constexpr R YO = H/2;
-
-constexpr R RB = 72187./212655;
-constexpr R G = 250000./357579;
-constexpr R JUMP = 0.2;
 
 constexpr Z FS = 60;
 
@@ -129,55 +126,8 @@ inline void normalize(RV& v) {
         v[i] *= s;
 }
 
-inline unsigned char GAMMA(const R i) {
-	R o;
-
-	if (i <= 0.0031308)
-		o = 12.92*i;
-	else
-		o = 1.055*pow(i, 5./12) - 0.055;
-
-	o *= 256;
-
-	if (Z(o) == 256)
-		return 255;
-	else
-		return o;
-}
-
-inline RGB color(R e) {
-    constexpr R minE = -N/SKEW;
-    constexpr R maxE =  N     ;
-
-	constexpr R pKneePF = KNEEP/maxE;
-	constexpr R posPF = 1/tanh(pKneePF*maxE);
-	constexpr R nKneePF = -KNEEM/minE;
-	constexpr R negPF = 1/tanh(nKneePF*minE);
-
-    RGB p;
-
-	if (e > 0) {
-		e = tanh(pKneePF*e);
-		e *= posPF;
-
-		p.r = GAMMA((1 - RB*JUMP)*e + RB*JUMP);
-		p.g = GAMMA((1 - G)*e);
-		p.b = GAMMA(e);
-	} else {
-		e = tanh(nKneePF*e);
-		e *= negPF;
-
-		p.r = 0;
-		p.g = GAMMA(G*e);
-		p.b = GAMMA(JUMP*(1 - e));
-	}
-
-    return p;
-}
-
-
 int main(int argc, const char* argv[]) {
-    Encoder encoder("out.mp4", W, H, 15, 0.5);
+    Encoder encoder("out.mp4", W, H, 10, 0.5);
 
     preprocess();
 
