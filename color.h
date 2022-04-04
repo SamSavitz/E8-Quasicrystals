@@ -23,9 +23,9 @@ inline RGB barney(R e) {
     constexpr R KNEEM = 1;
 
 	constexpr R pKneePF =  KNEEP/maxE;
-	constexpr R posPF = 1/tanh(pKneePF*maxE);
+	const R posPF = 1/tanh(pKneePF*maxE);
 	constexpr R nKneePF = -KNEEM/minE;
-	constexpr R negPF = 1/tanh(nKneePF*minE);
+	const R negPF = 1/tanh(nKneePF*minE);
 
     RGB p;
 
@@ -57,18 +57,18 @@ inline RGB cubehelix(const R i) {
     constexpr R hue = 1.0;
     constexpr R gamma = 1.0;
 
-    const double phi = 2*M_PI*(start/3 + rotations*i);
-    const double lg = pow(i, gamma);
-    const double alpha = hue*lg*(1 - lg)/2;
+    const R phi = 2*M_PI*(start/3 + rotations*i);
+    const R lg = pow(i, gamma);
+    const R alpha = hue*lg*(1 - lg)/2;
 
-    const double cphi = cos(phi);
-    const double sphi = sin(phi);
+    const R cphi = cos(phi);
+    const R sphi = sin(phi);
 
-    const double r = lg + alpha*(-0.14861*cphi + 1.78277*sphi);
-    const double g = lg + alpha*(-0.29227*cphi - 0.90649*sphi);
-    const double b = lg + alpha*( 1.97294*cphi               );
+    const R r = lg + alpha*(-0.14861*cphi + 1.78277*sphi);
+    const R g = lg + alpha*(-0.29227*cphi - 0.90649*sphi);
+    const R b = lg + alpha*( 1.97294*cphi               );
 
-    return RGB(255*r, 255*g, 255*b);
+    return RGB((unsigned char) (255*r), (unsigned char) (255*g), (unsigned char) (255*b));
 }
 
 inline RGB hsl(R h, const R s, const R l) {
@@ -76,53 +76,77 @@ inline RGB hsl(R h, const R s, const R l) {
     h /= 60;
     const R x = c*(1 - fabs(fmod(h, 2) - 1));
 
-    RGB r;
+    R r, g, b;
 
     switch ((Z) floor(h)) {
                 case 0:
-            r = RGB(c, x, 0);
+            r = c;
+            g = x;
+            b = 0;
         break;  case 1:
-            r = RGB(x, c, 0);
+            r = x;
+            g = c;
+            b = 0;
         break;  case 2:
-            r = RGB(0, c, x);
+            r = 0;
+            g = c;
+            b = x;
         break;  case 3:
-            r = RGB(0, x, c);
+            r = 0;
+            g = x;
+            b = c;
         break;  case 4:
-            r = RGB(x, 0, c);
+            r = x;
+            g = 0;
+            b = c;
         break;  case 5:
-            r = RGB(c, 0, x);
+            r = c;
+            g = 0;
+            b = x;
         break;
     }
 
     const R m = l - c/2;
 
-    r.r += m;
-    r.g += m;
-    r.b += m;
+    r += m;
+    g += m;
+    b += m;
 
-    r.r *= 255;
-    r.g *= 255;
-    r.b *= 255;
+    r *= 255.999;
+    g *= 255.999;
+    b *= 255.999;
 
-    return r;
+    return RGB(r, g, b);
 }
 
 inline RGB color(R i) {
     if (i < 0) {
-        i = (minE - i)/minE;
-        return cubehelix(1 - i);
-    } else {
-        constexpr R KNEEP = 4;
-    	constexpr R pKneePF = KNEEP/maxE;
-    	constexpr R posPF = 1/tanh(pKneePF*maxE);
+    	constexpr R nKneePF = -KNEEM/minE;
+    	const R negPF = 1/tanh(nKneePF*minE);
 
-		i = (posPF*tanh(pKneePF*i) + i/maxE)/2;
+        i = negPF*tanh(nKneePF*i);
+
+        //i = (minE - i)/minE;
+        return cubehelix(i);
+    } else {
+    	constexpr R pKneePF = KNEEP/maxE;
+    	const R posPF = 1/tanh(pKneePF*maxE);
+
+	i = (1.5*posPF*tanh(pKneePF*i) + i/maxE)/2.5;
+
+        //i = posPF*tanh(pKneePF*i);
 
         if      (i < 1./8)
-            return hsl(     480*i + 240      , 4*i + 1./2, 5*i/2      );
+            return hsl(     3840*i/7 + 240      , 2*i        , 5*i/2      );
         else if (i < 1./2)
-            return hsl(fmod(480*i + 240, 360), 1         , (2*i + 1)/4);
+            return hsl(fmod(3840*i/7 + 240, 360), 2*i        , (2*i + 1)/4);
+        else if (i < 11./12)
+            return hsl(fmod(3840*i/7 + 240, 360), 1          , 1./2       );
+        else if (i < 17./18)
+            return hsl(fmod(3840*i/7 + 240, 360), 1          , -18*i + 17 );
         else
-            return hsl(fmod(480*i + 240, 360), 1         , 1./2       );
+            return RGB(0, 0, 0);
     }
 }
+
+// 11/12*x + b = 1/2, 17/18*x + b = 0

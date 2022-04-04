@@ -1,0 +1,3 @@
+#! /bin/bash
+
+nvcc -o Plot -O4 -m64 -arch=sm_60 -std=c++17 --expt-relaxed-constexpr leechMain.cu -I/software/Intel/2018.1/compilers_and_libraries_2018.1.163/linux/tbb/include -I/home/ssavitz/lib/include -L/home/ssavitz/lib/lib -L/home/ssavitz/ffmpeg_build/lib -ltbb -lavcodec -lavformat -lavutil -lz -llzma -lx264 -lmp3lame -lswscale -lswresample && echo Made! && echo
