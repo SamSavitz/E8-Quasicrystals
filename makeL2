@@ -1,0 +1,3 @@
+#! /bin/bash
+
+g++ -o Plot -ggdb -m64 -march=native -mtune=native -std=gnu++20 leech.cpp -ltbb -lavcodec -lavformat -lavutil && echo Made! && echo

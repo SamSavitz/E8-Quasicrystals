@@ -24,16 +24,9 @@ constexpr Z D = 8;
 constexpr Z N = 240;
 
 constexpr R SKEW = 15;
-constexpr R PAUSE = 1.15;
 
 constexpr R minE = -N/SKEW;
 constexpr R maxE =  N     ;
-
-constexpr R KNEEM = 4;
-constexpr R KNEEP = 15.5;
-
-constexpr R TANHM = 0.5;
-constexpr R TANHP = 1.2;
 
 #include "codec.h"
 #include "color.h"
@@ -44,35 +37,25 @@ using RVP = array <RV, 2>;
 
 #include "data.h"
 
-constexpr Z W = 1080;
+constexpr Z W = 1920;
 constexpr Z H = 1080;
 constexpr Z P = H*W;
 
-constexpr R RES1 = 28;
-constexpr R RES2 = 8;
+constexpr R RES = 55;
 
 constexpr R XO = W/2;
 constexpr R YO = H/2;
 
-constexpr R FPS  = 30;
-
-constexpr R BT = 0.3 ;
-constexpr R ST = 1   ;
-constexpr R ZT = 10.5;
-constexpr R TT = 0.75;
-constexpr R RT = 12  ;
-
-constexpr R SECS = ST + ZT + TT + RT;
-constexpr Z FS = FPS*SECS;
+constexpr Z FS = 360;
 
 constexpr R EPSILON = 1e-9;
 
-constexpr Z SEED = 4;
+constexpr Z SEED = 2;
 
 #include "vectors.h"
 
 int main(int argc, const char* argv[]) {
-    RGBEncoder encoder("out.mp4", W, H, FPS, 1);
+    RGBEncoder encoder("out.mp4", W, H, 30, 1);
 
     preprocess();
 
@@ -86,34 +69,24 @@ int main(int argc, const char* argv[]) {
 	   RGB* const rgbFrame = new RGB   [P  ];
     //YUV420* const yuvFrame = new YUV420[P/4];
 
-    for (Z n = 0; n < XY.size(); ++n) {
-        const Z sf = n ? 0 : -FPS*BT;
-        const Z ef = FPS*(n == XY.size() - 1 ? ST + ZT + TT + BT : SECS);
+    for (Z n = 0; n < XY.size(); ++n)
+        for (Z f = 0; f < FS; ++f) {
+            const Z ff = FS*n + f;
 
-        for (Z f = sf; f < ef; ++f) {
-            const Z ff = FS*n + f + FPS*BT;
+            cerr << n << ' ' << f << ' ' << ff << endl;
 
-            cerr << n << ' ' << f << ' ' << ff << '/' << ef << endl;
-
-            cout << ff << '\t' << n << '\t' << f << '\t';
-
-            RVP xy = interpolate(
-                XY[n],
-                XY[n == XY.size() - 1 ? n : n + 1],
-                   n == XY.size() - 1 && f >= FPS*(ST + ZT + TT) ? FPS*(ST + ZT + TT) : f
-            );
+            RVP xy = interpolate(XY[n], XY[n + 1], f);
 
             tbb::parallel_for(
                 //execution::par_unseq,
-                tbb::blocked_range <int> (0, H),
+                tbb::blocked_range <int>  (0, H),
                 [&] (tbb::blocked_range <int> r) {
 
                 	for (Z y = r.begin(); y < r.end(); ++y) {
-                    //for (Z y = 0; y < H; ++y) {
-                		const R yf = (y - YO);
+                		const R yf = (y - YO)/RES;
 
                 		for (Z x = 0; x < W; ++x) {
-                			const R xf = (x - XO);
+                			const R xf = (x - XO)/RES;
 
                             const RV z = mix(xf, xy[0], yf, xy[1] );
 
@@ -126,8 +99,7 @@ int main(int argc, const char* argv[]) {
 
                             rgbFrame[W*y + x] = color(sum);
                 		}
-                    //}
-                    }
+                	}
                 }
             );
 
@@ -135,7 +107,6 @@ int main(int argc, const char* argv[]) {
 
             encoder.writeFrame(rgbFrame);
         }
-    }
 
     delete [] rgbFrame;//, yuvFrame;
 }

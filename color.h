@@ -124,7 +124,7 @@ inline RGB color(R i) {
     	constexpr R nKneePF = -KNEEM/minE;
     	const R negPF = 1/tanh(nKneePF*minE);
 
-        i = negPF*tanh(nKneePF*i);
+        i = (TANHM*negPF*tanh(nKneePF*i) + i/minE)/(TANHM + 1);
 
         //i = (minE - i)/minE;
         return cubehelix(i);
@@ -132,7 +132,7 @@ inline RGB color(R i) {
     	constexpr R pKneePF = KNEEP/maxE;
     	const R posPF = 1/tanh(pKneePF*maxE);
 
-	i = (1.5*posPF*tanh(pKneePF*i) + i/maxE)/2.5;
+	i = (TANHP*posPF*tanh(pKneePF*i) + i/maxE)/(TANHP + 1);
 
         //i = posPF*tanh(pKneePF*i);
 

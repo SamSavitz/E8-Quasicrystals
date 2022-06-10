@@ -34,6 +34,8 @@ inline void rotate(RVP& v) {
 }
 
 inline void preprocess() {
+    cout.precision(18);
+
     rotate(XY[0] );
 
     for (unsigned int n = 0; n < XY.size() - 1; n++) {
@@ -71,14 +73,44 @@ inline void normalize(RV& v) {
         v[i] *= s;
 }
 
+inline R sigmoid(R t) {
+    t = 2*t - 1;
+    return (t*(t*t*(t*t*(21 - 5*t*t) - 35) + 35) + 16)/32;
+}
+
+inline R zoom(const R t) {
+    return 0.0000000000015625*(129140163*t*t*t*t*t*t*(t - 1)*(t - 1)*(t - 1)*(t - 1)*(159190625 + 27*t*(-35247500 + t*(83659250 + 9*t*(4321179*t - 10160300)))));
+}
+
 inline RVP interpolate(const RVP& v1, const RVP& v2, const Z f) {
-    R t = (R) f/FS;
+    R s = (R) f/FPS;
+    R r = 0, z = 0;
+    bool trans = false;
 
-    t = 2*(t - 0.5);
-    t = (t*(t*t*(t*t*(21 - 5*t*t) - 35) + 35) + 16)/32;
+    if (s >= ST) {
+        s -= ST;
 
-    RV X2 = mix(1 - t, v1[0], t, v2[0] );
-    RV Y2 = mix(1 - t, v1[1], t, v2[1] );
+        if (s < ZT)
+            z = zoom(s/ZT);
+        else {
+            s -= ZT;
+
+            if (s >= TT) {
+                r = (s - TT)/RT;
+                trans = true;
+            }
+        }
+    }
+
+    r = sigmoid(r);
+    z = 1/(RES1 + (RES2 - RES1)*z);
+
+    cout << trans << '\t' << r << '\t' << z << '\n';
+
+    //cerr << f << ' ' << r << ' ' << z << endl;
+
+    RV X2 = mix(1 - r, v1[0], r, v2[0] );
+    RV Y2 = mix(1 - r, v1[1], r, v2[1] );
 
     if (f) {
         normalize(X2);
@@ -87,8 +119,18 @@ inline RVP interpolate(const RVP& v1, const RVP& v2, const Z f) {
 
     const R a = dot(X2, Y2);
 
-    const RV X = mix((sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
-    const RV Y = mix((sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), X2, (sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
+    const RV X = mix(z*(sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), X2, z*(sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
+    const RV Y = mix(z*(sqrt(1 - a) - sqrt(1 + a))/2/sqrt(1 - a*a), X2, z*(sqrt(1 - a) + sqrt(1 + a))/2/sqrt(1 - a*a), Y2);
+
+    for (Z i = 0; i < D - 1; ++i)
+        cout << X[i] << '\t';
+
+    cout << X[D - 1] << '\n';
+
+    for (Z i = 0; i < D - 1; ++i)
+        cout << Y[i] << '\t';
+
+    cout << Y[D - 1] << endl;
 
     return RVP{X, Y};
 }
