@@ -44,12 +44,12 @@ using RVP = array <RV, 2>;
 
 #include "data.h"
 
-constexpr Z W = 1080;
-constexpr Z H = 1080;
+constexpr Z W = 1920/2;
+constexpr Z H = 1920/2;
 constexpr Z P = H*W;
 
-constexpr R RES1 = 28;
-constexpr R RES2 = 8;
+constexpr R RES1 = 24;
+constexpr R RES2 = 7;
 
 constexpr R XO = W/2;
 constexpr R YO = H/2;
